@@ -42,9 +42,6 @@ def elements():
 def generic():
 	return render_template('generic.html')
 
-@app.route('/files')
-def files():
-	return render_template('files.html')
 
 '''
 
@@ -278,38 +275,31 @@ def upload():
 
     return render_template('upload.html',uploadForm = uploadForm)
 
+
+
+
+
+'''
+VIEW & DOWNLOAD FILES
+
+'''
+
+@app.route('/files', methods=['GET'])
+def files():
+	file_list= get_uploaded_files()
+	return render_template('files.html',uploaded_files=file_list)
+
+
 def get_uploaded_files():
-    uploads = []
-    for cwd, subdirs, files in os.walk(app.config['UPLOAD_FOLDER']):
-        for file in files:
-            if file.split('.')[-1] in allowed_uploads:
-                uploads.append(file)
+	uploads = 'static/uploads'
+	dirs = os.listdir( uploads )
+	return dirs
 
-    return uploads
-
-
-
-'''
-DOWNLOAD FILE
-
-'''
-
-@app.route('/download/<filename>', methods=['GET'])
+@app.route('/download/<path:filename>', methods=['GET'])
 def download(filename):
 	uploads = os.path.join(current_app.root_path, app.config['UPLOAD_FOLDER'])
 	return send_from_directory(directory=uploads, filename=filename, as_attachment=True)
 
-
-
-'''
-VIEW FILES 
-
-@app.route('/viewupload', methods=['GET'])
-def view_uploads():
-    file_list = get_uploaded_files()
-    print (file_list)
-    return render_template('files.html', uploaded_files = file_list)
-'''
 
 
 

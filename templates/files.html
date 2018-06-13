@@ -3,8 +3,8 @@
 
 <div class="fileView">
 	<ul>
-    {% for files in uploaded_files %}
-    <div><li>{{'uploads/'+files}}/></li></div>
+    {% for file in uploaded_files %}
+    <div><li style="color:black; font-size:20px; font-family:Times New Roman;">{{ file }}</li></div>
     {% endfor %}
 </ul>
 </div>
