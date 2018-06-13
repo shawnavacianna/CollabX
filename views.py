@@ -144,7 +144,7 @@ def get_channel():
 
 
 '''
-CREATE & ADD TO WORKSPACE & CHANNEL
+CREATE WORKSPACE, TASK & CHANNEL ----- ADD USER TO WORKSPACE, TASK & CHANNEL
 
 '''
 
@@ -211,6 +211,32 @@ def add_user_to_workspace(current_user,public_id):
 	db.session.commit()
 	return jsonify({'Message':'The user was added to the specified workspace'})
 
+@app.route('/task', methods=['POST'])
+@token_required
+def add_task(current_user):
+	if not current_user.admin:
+		return jsonify({'Message':'You must be an admin to perform this task'})
+	data = request.get_json()
+	new_task=Task(name=data['name'],description=data['description'],assignee= data['assignee'],creation_date=datetime.datetime.utcnow(),due_date= data['due_date'],creator=current_user.id)
+	db.session.add(new_task)
+	db.session.commit()
+	return jsonify({'Message':'Task created'})
+
+@app.route('/task/<public_id>', methods=['PUT'])
+@token_required
+def assign_task(current_user,public_id):
+	if not current_user.admin:
+		return jsonify({'Message':'You must be an admin to perform this task'})
+	user = User.query.filter_by(public_id=public_id).first()	
+	if not user:
+		return jsonify({'Message':'User does not exist'})
+	data = request.get_json()
+	task = Task.query.filter_by(name = data['task']).first()
+	if not task:
+		return jsonify({'Message':'No such task exist'})
+	user.task = Task.id
+	db.session.commit()
+	return jsonify({'Message':'The user was assigned a task'})
 
 '''
 DELETE USER, WORKSPACE, CHANNEL
@@ -251,6 +277,19 @@ def delete_channel(current_user,name):
 	return jsonify({'Message':'The Channel was deleted'})
 
 
+
+@app.route('/task/<public_id>',methods=['DELETE'])
+@token_required
+def delete_task(current_user,name):
+    if not current_user.admin:
+    	return jsonify({'Message':'You must be an admin to perform this task'})
+    	
+    task=Task.query.filter_by(name=name).first()
+    if not task:
+    	return jsonify({'Message':'task does not exist'})
+    db.session.delete(task)
+    db.session.commit()
+    return jsonify({'Message': 'The task was deleted'})
 ######################################   FRONT-END IMPLEMENTATIONS   ####################################################################
 '''
 
