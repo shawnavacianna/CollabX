@@ -1,0 +1,12 @@
+{% extends 'layout.html' %}
+{% block main %}
+
+<div class="fileView">
+	<ul>
+    {% for files in uploaded_files %}
+    <div><li>{{filename='uploads/'+files)}}/></li></div>
+    {% endfor %}
+</ul>
+</div>
+
+{% endblock %}
