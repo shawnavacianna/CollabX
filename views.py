@@ -8,7 +8,7 @@ import datetime
 from functools import wraps
 import os
 from werkzeug.utils import secure_filename
-from forms import UploadForm 
+from forms import UploadForm ,SignUpForm
 
 
 
@@ -29,15 +29,6 @@ def token_required(f):
 		return f(current_user,*arg, **kwargs)
 	return decorated
 
-'''
-def admin_required(f):
-	@wraps(f)
-	def decorated(*arg, **kwargs):
-		@token_required
-		if not current_user.admin:
-			return jsonify({'Message':'You must be an admin to perform this task'})
-		return 
-'''
 
 @app.route('/home')
 def home():
@@ -50,6 +41,16 @@ def elements():
 @app.route('/generic')
 def generic():
 	return render_template('generic.html')
+
+@app.route('/files')
+def files():
+	return render_template('files.html')
+
+'''
+
+LOGIN AND REGISTER A USER
+
+'''
 
 
 @app.route('/login')
@@ -65,14 +66,7 @@ def login():
 		return jsonify({'token':token.decode('UTF-8')}) 		#return redirect(url_for('home'))
 	return make_response('Authentication not verified',401,{'WWW-Authenticate':'Basic realm="Login Required!"'})
 
-
 '''
-@app.route('/logout')
-@token_required
-def logout(current_user):
-	if 
-'''
-
 @app.route('/register', methods=['POST'])
 def register():
 	data = request.get_json()
@@ -81,7 +75,13 @@ def register():
 	db.session.add(new_user)
 	db.session.commit()
 	return jsonify({'Message':'You are now a registered member '})
-	#return redirect(url_for('home'))
+'''
+
+'''
+
+PROMOTE A USER TO ADMIN
+
+'''
 
 @app.route('/user/<public_id>',methods=['PUT'])
 @token_required
@@ -98,7 +98,8 @@ def promote_user(public_id):
 
 
 '''
-HELPER ROUTES TO SEE DATABASE OBJECTS
+HELPER ROUTES TO SEE DATABASE OBJECTS (USERS, WORKSPACES, CHANNELS)
+
 '''
 
 @app.route('/user',methods=['GET'])
@@ -143,6 +144,7 @@ def get_channel():
 
 		output.append(channel_data)
 	return jsonify({'channels':output})
+
 
 '''
 CREATE & ADD TO WORKSPACE & CHANNEL
@@ -251,9 +253,11 @@ def delete_channel(current_user,name):
 	db.session.commit()
 	return jsonify({'Message':'The Channel was deleted'})
 
+
+######################################   FRONT-END IMPLEMENTATIONS   ####################################################################
 '''
 
- UPLOAD AND DOWNLOAD FILES
+ UPLOAD FILES
 
 '''
 
@@ -271,22 +275,8 @@ def upload():
         upload.save(os.path.join(app.config['UPLOAD_FOLDER'],filename))
 
         flash('File Saved', 'success')
-        return redirect(url_for('home'))
 
     return render_template('upload.html',uploadForm = uploadForm)
-
-@app.route('/download/<filename>', methods=['GET'])
-def download(filename):
-	    uploads = os.path.join(current_app.root_path, app.config['UPLOAD_FOLDER'])
-	    return send_from_directory(directory=uploads, filename=filename, as_attachment=True)
-
-'''
-@app.route('/viewupload', methods=['GET'])
-def view_uploads():
-    file_list = get_uploaded_files()
-    print (file_list)
-    return render_template('files.html', uploaded_files = file_list)
-'''
 
 def get_uploaded_files():
     uploads = []
@@ -297,19 +287,70 @@ def get_uploaded_files():
 
     return uploads
 
-'''
 
-@app.route('/user/<public_id>',methods=['GET'])
-def get_one_user(public_id):
-	user = User.query.filter_by(public_id=public_id).first()
-	if not user:
-		return jsonify({'Message':'User does not exist'})
-
-	user_data ={}		
-	user_data['public_id']=user.public_id
-	user_data['name']=user.name
-	user_data['password']=user.password
-	user_data['admin']=user.admin
-	return jsonify({'user':user_data})
 
 '''
+DOWNLOAD FILE
+
+'''
+
+@app.route('/download/<filename>', methods=['GET'])
+def download(filename):
+	uploads = os.path.join(current_app.root_path, app.config['UPLOAD_FOLDER'])
+	return send_from_directory(directory=uploads, filename=filename, as_attachment=True)
+
+
+
+'''
+VIEW FILES 
+
+@app.route('/viewupload', methods=['GET'])
+def view_uploads():
+    file_list = get_uploaded_files()
+    print (file_list)
+    return render_template('files.html', uploaded_files = file_list)
+'''
+
+
+
+''' 
+ REGISTER A USER
+
+'''
+
+@app.route('/register', methods=['GET','POST'])
+def register():
+	#if request.method == "POST":
+
+	form = SignUpForm()
+
+	name=form.name.data
+	hashed_password=generate_password_hash(form.password.data,method='sha256')
+	new_user = User(public_id=str(uuid.uuid4()), name=name,password=hashed_password,admin=False,channel="",workspace=form.workspace.data)
+	return render_template('register.html',form=form)
+
+
+
+############################################ TESTING PHASE 1 ############################################################################
+'''
+CHECK FOR HEADER TYPE AND IF 'application/json' RETURN DATA IN JSON FORMAT ELSE RETURN FLASH MESSAGE FOR BROWSER AND REDIRECT PAGE
+
+@app.route('/register', methods=['POST'])
+def register():
+	r = new Request('https://localhost/register')
+
+	if r.header['content-type'] == 'application/json':
+		data = request.get_json()
+		hashed_password = generate_password_hash(data['password'],method='sha256')
+		new_user = User(public_id=str(uuid.uuid4()), name=data['name'],password=hashed_password,admin=False,channel=data['channel'],workspace=data['workspace'])
+		db.session.add(new_user)
+		db.session.commit()
+		return jsonify({'Message':'You are now a registered member'})
+	else:
+		form=UploadForm()
+		name=form.name.data
+		hashed_password=generate_password_hash(form.password.data,method='sha256')
+
+		new_user = User(public_id=str(uuid.uuid4()), name=name,password=hashed_password,admin=False,channel="",workspace=form.workspace.data)
+'''
+

@@ -10,20 +10,18 @@
         <a class="nav-link" href="{{ url_for('home') }}">Home <span class="sr-only">(current)</span></a>
       </li>
       <li class="nav-item">
-        <a class="nav-link" href="{{ url_for('upload') }}">Uploads</a>
+        <a class="nav-link" href="{{ url_for('upload') }}">Upload A File</a>
+      </li> 
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('files') }}">View Files</a>
       </li> 
     </ul>
-    <ul class="navbar-nav">
-        {% if not token %}
-            <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('login') }}">Login</a>
-            </li>
-        {% else %}
-            <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
-            </li>
-        {% endif %}
-    </ul>
+
+   <ul class="navbar-nav">
+      <li class="nav-item">
+        <a class="nav-link" href="{{ url_for('register') }}">Register</a>
+      </li> 
+    </ul> 
 
   </div>
 </nav>
