@@ -68,7 +68,7 @@ def login():
 def register():
 	data = request.get_json()
 	hashed_password = generate_password_hash(data['password'],method='sha256')
-	new_user = User(public_id=str(uuid.uuid4()), name=data['name'],password=hashed_password,admin=False,channel=data['channel'],workspace=data['workspace'])
+	new_user = User(public_id=str(uuid.uuid4()), name=data['name'],password=hashed_password,admin=False)
 	db.session.add(new_user)
 	db.session.commit()
 	return jsonify({'Message':'You are now a registered member '})
@@ -82,9 +82,9 @@ PROMOTE A USER TO ADMIN
 
 @app.route('/user/<public_id>',methods=['PUT'])
 @token_required
-def promote_user(public_id):	
-	if not current_user.admin:
-		return jsonify({'Message':'You must be an admin to perform this task'})
+def promote_user(current_user,public_id):	
+	#if not current_user.admin:
+	#	return jsonify({'Message':'You must be an admin to perform this task'})
 	user = User.query.filter_by(public_id=public_id).first()	
 	if not user:
 		return jsonify({'Message':'User does not exist'})
@@ -109,8 +109,6 @@ def get_users():
 		user_data['name']=user.name
 		user_data['password']=user.password
 		user_data['admin']=user.admin
-		user_data['channel'] = user.channel
-		user_data['workspace'] = user.workspace
 		output.append(user_data)
 	return jsonify({'users':output})
 
@@ -142,9 +140,25 @@ def get_channel():
 		output.append(channel_data)
 	return jsonify({'channels':output})
 
+@app.route('/task',methods=['GET'])
+def get_task():
+	tasks =Task.query.all()
+	output = []
+	for task in tasks:
+		task_data={}
+		task_data['name']=task.name
+		task_data['description']=task.description
+		task_data['assignee']=task.assignee
+		task_data['creation_date']=task.creation_date
+		task_data['due_date']=task.due_date	
+		task_data['creator']=task.creator
+
+		output.append(task_data)
+	return jsonify({'tasks':output})
+
 
 '''
-CREATE WORKSPACE, TASK & CHANNEL ----- ADD USER TO WORKSPACE, TASK & CHANNEL
+CREATE CHANNEL & ADD USER TO CHANNEL
 
 '''
 
@@ -175,9 +189,19 @@ def add_user_to_channel(current_user,public_id):
 	channel = Channel.query.filter_by(name=data['channel']).first()
 	if not channel:
 		return jsonify({'Message':'Channel does not exist'})
-	user.channel = channel.id
+
+
+	new_userchannel = UserChannel(user_id = user.id, channel_id = channel.id)
+	db.session.add(new_userchannel)
 	db.session.commit()
+
 	return jsonify({'Message':'The user was added to the specified channel'})
+
+
+'''
+CREATE WORKSPACE & ADD USER TO WORKSPACE
+
+'''
 
 @app.route('/workspace/<public_id>', methods=['POST','PUT'])
 @token_required
@@ -207,9 +231,17 @@ def add_user_to_workspace(current_user,public_id):
 	workspace = Workspace.query.filter_by(name=data['workspace']).first()
 	if not workspace:
 		return jsonify({'Message':'Workspace does not exist'})
-	user.workspace = workspace.id
+
+	new_userworkspace = UserWorkspace(user_id = user.id, workspace_id = workspace.id)
+	db.session.add(new_userworkspace)
 	db.session.commit()
+
 	return jsonify({'Message':'The user was added to the specified workspace'})
+
+'''
+CREATE CHANNEL & ADD USER TO CHANNEL
+
+'''
 
 @app.route('/task', methods=['POST'])
 @token_required
@@ -217,29 +249,35 @@ def add_task(current_user):
 	if not current_user.admin:
 		return jsonify({'Message':'You must be an admin to perform this task'})
 	data = request.get_json()
-	new_task=Task(name=data['name'],description=data['description'],assignee= data['assignee'],creation_date=datetime.datetime.utcnow(),due_date= data['due_date'],creator=current_user.id)
+	user = User.query.filter_by(name=data['assignee']).first()	
+	if not user:
+		return jsonify({'Message':'The assigned user does not exist'})
+	new_task=Task(name=data['name'],description=data['description'],assignee= user.public_id,progress= data['progress'],creation_date=datetime.datetime.utcnow(),due_date= data['due_date'],creator=current_user.id)
 	db.session.add(new_task)
 	db.session.commit()
 	return jsonify({'Message':'Task created'})
-
+	
 @app.route('/task/<public_id>', methods=['PUT'])
 @token_required
 def assign_task(current_user,public_id):
-	if not current_user.admin:
-		return jsonify({'Message':'You must be an admin to perform this task'})
+	#if not current_user.admin:
+	#	return jsonify({'Message':'You must be an admin to perform this task'})
 	user = User.query.filter_by(public_id=public_id).first()	
 	if not user:
 		return jsonify({'Message':'User does not exist'})
 	data = request.get_json()
-	task = Task.query.filter_by(name = data['task']).first()
+	task = Task.query.filter_by(name = data['name']).first()
 	if not task:
 		return jsonify({'Message':'No such task exist'})
-	user.task = Task.id
+
+	new_usertask = UserTasks(user_id = user.id, task_id = task.id)
+	db.session.add(new_usertask)
+	
 	db.session.commit()
 	return jsonify({'Message':'The user was assigned a task'})
 
 '''
-DELETE USER, WORKSPACE, CHANNEL
+DELETE USER, WORKSPACE, CHANNEL, TASK
 
 '''
 
@@ -278,7 +316,7 @@ def delete_channel(current_user,name):
 
 
 
-@app.route('/task/<public_id>',methods=['DELETE'])
+@app.route('/task/<name>',methods=['DELETE'])
 @token_required
 def delete_task(current_user,name):
     if not current_user.admin:
@@ -290,6 +328,82 @@ def delete_task(current_user,name):
     db.session.delete(task)
     db.session.commit()
     return jsonify({'Message': 'The task was deleted'})
+
+'''
+
+NOTIFICATIONS (UPDATE TASK PROGRESS)
+
+'''
+
+@app.route('/task/progress/<name>', methods=['PUT'])
+@token_required
+def update_progress(current_user,name):	
+	task = Task.query.filter_by(name = name).first()
+	if not task:
+		return jsonify({'Message':'No such task exist'})
+	
+	if task.assignee != current_user.public_id and not current_user.admin:
+		return jsonify({'Message':'You are not authorized to perform this task'})
+	
+	data = request.get_json()
+	task.progress = data['progress']	
+	db.session.commit()
+	return jsonify({'Message':'The task progress was updated'})
+	
+@app.route('/task/progress/<name>', methods=['GET'])
+def get_progress(name):	
+	task = Task.query.filter_by(name = name).first()
+	if not task:
+		return jsonify({'Message':'No such task exist'})
+	
+	return jsonify({'progress' : task.progress})
+	
+@app.route('/task/progress/<name>', methods=['POST'])
+@token_required
+def notify_progress(current_user, name):	
+	user = User.query.filter_by(public_id=current_user.public_id).first()	
+	if not user:
+		return jsonify({'Message':'User does not exist'})
+		
+	task = Task.query.filter_by(name = name).first()
+	if not task:
+		return jsonify({'Message':'No such task exist'})
+		
+	new_update = Updates(user = current_user.public_id, task = task.id)
+	db.session.add(new_update)
+	db.session.commit()
+	return jsonify({'Message':'You will be notified when this task is updated'})
+
+
+'''
+SEND AND GET MESSAGES
+
+'''
+@app.route('/messages', methods = ["POST"])
+@token_required
+def send_message(current_user):
+	data = request.get_json()
+	user = User.query.filter_by(name=data['receiver']).first()
+	new_message = Message(sender=current_user.public_id ,time_sent=datetime.datetime.utcnow(),message= data['message'],reciever = user.public_id)
+	db.session.add(new_message)
+	db.session.commit()
+	return jsonify({'Message':'Message Sent'})
+
+@app.route('/messages', methods = ["GET"])
+@token_required
+def get_messages(current_user):
+	messages = Message.query.filter_by(reciever=current_user.public_id)
+	output = []
+	for message in messages:
+		message_data = {}
+		message_data['sender'] = message.sender
+		message_data['time_sent'] = message.time_sent
+		message_data['message'] = message.message
+		message_data['receiver'] = message.reciever		
+		output.append(message_data)
+	return jsonify({"messages": output})
+
+	
 ######################################   FRONT-END IMPLEMENTATIONS   ####################################################################
 '''
 
@@ -344,18 +458,20 @@ def download(filename):
 
 ''' 
  REGISTER A USER
-
 '''
+
 
 @app.route('/register', methods=['GET','POST'])
 def register():
-	#if request.method == "POST":
-
 	form = SignUpForm()
+	if request.method == "POST":
+		name=form.name.data
+		hashed_password=generate_password_hash(form.password.data,method='sha256')
+		new_user = User(public_id=str(uuid.uuid4()), name=name,password=hashed_password,admin=False)
+		db.session.add(new_user)
+		db.session.commit()
 
-	name=form.name.data
-	hashed_password=generate_password_hash(form.password.data,method='sha256')
-	new_user = User(public_id=str(uuid.uuid4()), name=name,password=hashed_password,admin=False,channel="",workspace=form.workspace.data)
+		return redirect(url_for('home'))
 	return render_template('register.html',form=form)
 
 
